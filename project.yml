@@ -8,3 +8,4 @@ targets:
     settings:
       PRODUCT_BUNDLE_IDENTIFIER: com.test.memo
       INFOPLIST_FILE: Info.plist
+      ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
