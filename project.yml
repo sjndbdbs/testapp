@@ -1,0 +1,10 @@
+name: TestApp
+targets:
+  TestApp:
+    type: application
+    platform: iOS
+    deploymentTarget: "15.0"
+    sources: [TestApp]
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: com.test.memo
+      INFOPLIST_FILE: Info.plist
