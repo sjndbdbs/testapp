@@ -7,7 +7,7 @@ enum ItemType: String, Codable {
     case file
 }
 
-struct FolderItem: Identifiable, Codable {
+struct FolderItem: Identifiable, Codable, Hashable {
     var id = UUID().uuidString
     var name: String
     var type: ItemType

@@ -31,7 +31,7 @@ class StorageManager: ObservableObject {
 
     func createFolder(named name: String, in parent: FolderItem? = nil) {
         let folder = FolderItem(name: name, type: .folder, createdAt: Date())
-        if var parent = parent, let idx = findIndex(of: parent.id, in: &rootItems) {
+        if let parent = parent, let idx = findIndex(of: parent.id, in: &rootItems) {
             rootItems[idx].children = (rootItems[idx].children ?? []) + [folder]
         } else {
             rootItems.append(folder)
@@ -41,7 +41,7 @@ class StorageManager: ObservableObject {
 
     func createNote(named name: String, content: String = "", in parent: FolderItem? = nil) {
         let note = FolderItem(name: name, type: .note, content: content, createdAt: Date())
-        if var parent = parent, let idx = findIndex(of: parent.id, in: &rootItems) {
+        if let parent = parent, let idx = findIndex(of: parent.id, in: &rootItems) {
             rootItems[idx].children = (rootItems[idx].children ?? []) + [note]
         } else {
             rootItems.append(note)
@@ -67,7 +67,7 @@ class StorageManager: ObservableObject {
         let filename = UUID().uuidString + ".jpg"
         try? data.write(to: imgDir.appendingPathComponent(filename))
         let img = FolderItem(name: name, type: .image, attachmentPath: filename, createdAt: Date())
-        if var parent = parent, let idx = findIndex(of: parent.id, in: &rootItems) {
+        if let parent = parent, let idx = findIndex(of: parent.id, in: &rootItems) {
             rootItems[idx].children = (rootItems[idx].children ?? []) + [img]
         } else {
             rootItems.append(img)
