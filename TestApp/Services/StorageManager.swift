@@ -96,7 +96,8 @@ class StorageManager: ObservableObject {
     }
 
     func copyToTemp(_ item: FolderItem) -> URL? {
-        guard let src = mediaURL(for item) ?? noteFileURL(for: item) else { return nil }
+        let src = mediaURL(for: item) ?? noteFileURL(for: item)
+        guard let src else { return nil }
         let tmp = FileManager.default.temporaryDirectory.appendingPathComponent(item.originalFilename ?? item.name)
         try? FileManager.default.removeItem(at: tmp)
         try? FileManager.default.copyItem(at: src, to: tmp)
