@@ -7,23 +7,41 @@ struct NoteEditorView: View {
     @EnvironmentObject var storage: StorageManager
     @State var item: FolderItem
     @State private var text: String = ""
-    @FocusState private var focused: Bool
 
     var body: some View {
-        TextEditor(text: $text)
-            .focused($focused)
-            .padding()
-            .onAppear {
-                text = item.content ?? ""
-                focused = true
-            }
-            .onDisappear { save() }
-            .navigationTitle(item.name)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("保存") { save() }
+        VStack(spacing: 0) {
+            // 工具栏：粘贴 | 复制 | 保存
+            HStack(spacing: 12) {
+                Button { text = UIPasteboard.general.string ?? "" } label: {
+                    Label("粘贴", systemImage: "doc.on.clipboard")
+                        .font(.caption)
                 }
+                .buttonStyle(.bordered)
+
+                Button { UIPasteboard.general.string = text } label: {
+                    Label("复制全文", systemImage: "doc.on.doc")
+                        .font(.caption)
+                }
+                .buttonStyle(.bordered)
+                .disabled(text.isEmpty)
+
+                Spacer()
+
+                Button("保存") { save() }
+                    .buttonStyle(.borderedProminent)
             }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Color(.systemGroupedBackground))
+
+            Divider()
+
+            TextEditor(text: $text)
+                .padding(.horizontal, 8)
+        }
+        .onAppear { text = item.content ?? "" }
+        .onDisappear { save() }
+        .navigationTitle(item.name)
     }
 
     private func save() {
@@ -33,7 +51,7 @@ struct NoteEditorView: View {
     }
 }
 
-// MARK: - Media Detail (image & video)
+// MARK: - Media Detail
 struct MediaDetailView: View {
     let item: FolderItem
     @EnvironmentObject var storage: StorageManager
@@ -68,8 +86,7 @@ struct CreateSheet: View {
             Form {
                 TextField(type == .folder ? "文件夹名" : "笔记标题", text: $name)
             }
-            .navigationTitle(type == .folder ? "新建文件夹" :
-                             type == .note ? "新建笔记" : "新建")
+            .navigationTitle(type == .folder ? "新建文件夹" : "新建笔记")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("创建") { onCreate() }.disabled(name.isEmpty)
@@ -82,7 +99,7 @@ struct CreateSheet: View {
     }
 }
 
-// MARK: - Media Picker (photo + video)
+// MARK: - Media Picker
 struct MediaPickerView: UIViewControllerRepresentable {
     let isVideo: Bool
     let onPick: (Data, String) -> Void
@@ -106,15 +123,13 @@ struct MediaPickerView: UIViewControllerRepresentable {
         func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
             if let videoURL = info[.mediaURL] as? URL,
                let data = try? Data(contentsOf: videoURL) {
-                let name = "VID_\(Int(Date().timeIntervalSince1970))"
-                onPick(data, name)
+                onPick(data, "VID_\(Int(Date().timeIntervalSince1970))")
                 picker.dismiss(animated: true)
                 return
             }
             if let img = info[.originalImage] as? UIImage,
                let data = img.jpegData(compressionQuality: 0.8) {
-                let name = "IMG_\(Int(Date().timeIntervalSince1970))"
-                onPick(data, name)
+                onPick(data, "IMG_\(Int(Date().timeIntervalSince1970))")
             }
             picker.dismiss(animated: true)
         }
@@ -130,7 +145,10 @@ struct DocumentPickerView: UIViewControllerRepresentable {
     let onPick: (URL) -> Void
 
     func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
-        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [UTType.data, UTType.pdf, UTType.text, UTType.plainText, UTType.image, UTType.movie, UTType.audio, UTType.archive, UTType.spreadsheet])
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [
+            .data, .pdf, .text, .plainText, .image,
+            .movie, .audio, .archive, .spreadsheet
+        ])
         picker.allowsMultipleSelection = false
         picker.delegate = context.coordinator
         return picker

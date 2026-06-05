@@ -77,6 +77,7 @@ class StorageManager: ObservableObject {
     }
 
     func deleteItem(_ item: FolderItem) {
+        objectWillChange.send()
         removeItem(id: item.id, from: &rootItems)
         save()
     }
@@ -114,6 +115,7 @@ class StorageManager: ObservableObject {
     // MARK: - Private
 
     private func addItem(_ item: FolderItem, to parent: FolderItem?) {
+        objectWillChange.send()
         if let parent = parent, let idx = rootItems.firstIndex(where: { $0.id == parent.id }) {
             rootItems[idx].children = (rootItems[idx].children ?? []) + [item]
         } else if let parent = parent, let path = findPath(to: parent.id, in: rootItems) {

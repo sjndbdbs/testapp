@@ -3,12 +3,6 @@ import UniformTypeIdentifiers
 
 struct ContentView: View {
     @StateObject private var storage = StorageManager()
-    @State private var showCreateSheet = false
-    @State private var newName = ""
-    @State private var createType: ItemType = .folder
-    @State private var showMediaPicker = false
-    @State private var showFilePicker = false
-    @State private var mediaIsVideo = false
 
     var body: some View {
         NavigationStack {
@@ -18,52 +12,6 @@ struct ContentView: View {
                 parent: nil
             )
             .navigationTitle("备忘录")
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Menu {
-                        Button { createType = .folder; showCreateSheet = true } label: {
-                            Label("新建文件夹", systemImage: "folder.badge.plus")
-                        }
-                        Button { createType = .note; showCreateSheet = true } label: {
-                            Label("新建笔记", systemImage: "doc.badge.plus")
-                        }
-                        Divider()
-                        Button { mediaIsVideo = false; showMediaPicker = true } label: {
-                            Label("添加图片", systemImage: "photo.badge.plus")
-                        }
-                        Button { mediaIsVideo = true; showMediaPicker = true } label: {
-                            Label("添加视频", systemImage: "video.badge.plus")
-                        }
-                        Button { showFilePicker = true } label: {
-                            Label("导入文件", systemImage: "folder.badge.plus")
-                        }
-                    } label: {
-                        Image(systemName: "plus")
-                    }
-                }
-            }
-            .sheet(isPresented: $showCreateSheet) {
-                CreateSheet(name: $newName, type: createType) {
-                    if createType == .folder {
-                        storage.createFolder(named: newName)
-                    } else {
-                        storage.createNote(named: newName)
-                    }
-                    newName = ""; showCreateSheet = false
-                }
-            }
-            .sheet(isPresented: $showMediaPicker) {
-                MediaPickerView(isVideo: mediaIsVideo) { data, name in
-                    storage.addMedia(named: name, data: data, isVideo: mediaIsVideo)
-                    showMediaPicker = false
-                }
-            }
-            .sheet(isPresented: $showFilePicker) {
-                DocumentPickerView { url in
-                    storage.addFile(url: url)
-                    showFilePicker = false
-                }
-            }
         }
         .environmentObject(storage)
     }
