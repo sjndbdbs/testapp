@@ -6,6 +6,9 @@ class StorageManager: ObservableObject {
     private let baseURL: URL
     private let dataFile: URL
 
+    // helper to get current working parent in any view context
+    @Published var currentParent: FolderItem? = nil
+
     init() {
         let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         baseURL = docs.appendingPathComponent("MemoData")
@@ -29,31 +32,48 @@ class StorageManager: ObservableObject {
         try? data.write(to: dataFile)
     }
 
+    // MARK: - Create
+
     func createFolder(named name: String, in parent: FolderItem? = nil) {
         let folder = FolderItem(name: name, type: .folder, createdAt: Date())
-        if let parent = parent, let idx = findIndex(of: parent.id, in: &rootItems) {
-            rootItems[idx].children = (rootItems[idx].children ?? []) + [folder]
-        } else {
-            rootItems.append(folder)
-        }
-        save()
+        addItem(folder, to: parent)
     }
 
     func createNote(named name: String, content: String = "", in parent: FolderItem? = nil) {
         let note = FolderItem(name: name, type: .note, content: content, createdAt: Date())
-        if let parent = parent, let idx = findIndex(of: parent.id, in: &rootItems) {
-            rootItems[idx].children = (rootItems[idx].children ?? []) + [note]
-        } else {
-            rootItems.append(note)
-        }
-        save()
+        addItem(note, to: parent)
     }
 
+    @discardableResult
+    func addMedia(named name: String, data: Data, isVideo: Bool = false, in parent: FolderItem? = nil) -> FolderItem {
+        let ext = isVideo ? ".mp4" : ".jpg"
+        let dirName = isVideo ? "Videos" : "Images"
+        let dir = baseURL.appendingPathComponent(dirName)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let filename = UUID().uuidString + ext
+        try? data.write(to: dir.appendingPathComponent(filename))
+        let type: ItemType = isVideo ? .video : .image
+        let item = FolderItem(name: name, type: type, attachmentPath: filename, createdAt: Date())
+        addItem(item, to: parent)
+        return item
+    }
+
+    func addFile(url: URL, in parent: FolderItem? = nil) {
+        let filesDir = baseURL.appendingPathComponent("Files")
+        try? FileManager.default.createDirectory(at: filesDir, withIntermediateDirectories: true)
+        let filename = UUID().uuidString + "_" + url.lastPathComponent
+        let dest = filesDir.appendingPathComponent(filename)
+        try? FileManager.default.copyItem(at: url, to: dest)
+        let item = FolderItem(name: url.lastPathComponent, type: .file,
+                              attachmentPath: filename, originalFilename: url.lastPathComponent,
+                              createdAt: Date())
+        addItem(item, to: parent)
+    }
+
+    // MARK: - Update / Delete
+
     func updateNote(_ note: FolderItem) {
-        if let idx = findIndex(of: note.id, in: &rootItems) {
-            rootItems[idx] = note
-            save()
-        }
+        replaceItem(note)
     }
 
     func deleteItem(_ item: FolderItem) {
@@ -61,45 +81,87 @@ class StorageManager: ObservableObject {
         save()
     }
 
-    func addImage(named name: String, data: Data, to parent: FolderItem? = nil) {
-        let imgDir = baseURL.appendingPathComponent("Images")
-        try? FileManager.default.createDirectory(at: imgDir, withIntermediateDirectories: true)
-        let filename = UUID().uuidString + ".jpg"
-        try? data.write(to: imgDir.appendingPathComponent(filename))
-        let img = FolderItem(name: name, type: .image, attachmentPath: filename, createdAt: Date())
-        if let parent = parent, let idx = findIndex(of: parent.id, in: &rootItems) {
-            rootItems[idx].children = (rootItems[idx].children ?? []) + [img]
+    // MARK: - Path helpers
+
+    func mediaURL(for item: FolderItem) -> URL? {
+        guard let path = item.attachmentPath else { return nil }
+        let dirName: String
+        switch item.type {
+        case .video: dirName = "Videos"
+        case .image: dirName = "Images"
+        case .file:  dirName = "Files"
+        default:     return nil
+        }
+        return baseURL.appendingPathComponent(dirName).appendingPathComponent(path)
+    }
+
+    func copyToTemp(_ item: FolderItem) -> URL? {
+        guard let src = mediaURL(for item) ?? noteFileURL(for: item) else { return nil }
+        let tmp = FileManager.default.temporaryDirectory.appendingPathComponent(item.originalFilename ?? item.name)
+        try? FileManager.default.removeItem(at: tmp)
+        try? FileManager.default.copyItem(at: src, to: tmp)
+        return tmp
+    }
+
+    func noteFileURL(for item: FolderItem) -> URL? {
+        guard item.type == .note else { return nil }
+        let notesDir = baseURL.appendingPathComponent("Notes")
+        try? FileManager.default.createDirectory(at: notesDir, withIntermediateDirectories: true)
+        return notesDir.appendingPathComponent(item.id + ".txt")
+    }
+
+    // MARK: - Private
+
+    private func addItem(_ item: FolderItem, to parent: FolderItem?) {
+        if let parent = parent, let idx = rootItems.firstIndex(where: { $0.id == parent.id }) {
+            rootItems[idx].children = (rootItems[idx].children ?? []) + [item]
+        } else if let parent = parent, let path = findPath(to: parent.id, in: rootItems) {
+            var target = rootItems
+            for (i, ancestor) in path.enumerated() {
+                let idx = target.firstIndex(where: { $0.id == ancestor.id })!
+                if i == path.count - 1 {
+                    target[idx].children = (target[idx].children ?? []) + [item]
+                } else {
+                    target = target[idx].children ?? []
+                }
+            }
         } else {
-            rootItems.append(img)
+            rootItems.append(item)
         }
         save()
     }
 
-    func imageURL(for item: FolderItem) -> URL? {
-        guard let path = item.attachmentPath else { return nil }
-        return baseURL.appendingPathComponent("Images").appendingPathComponent(path)
+    private func replaceItem(_ item: FolderItem) {
+        if let idx = rootItems.firstIndex(where: { $0.id == item.id }) {
+            rootItems[idx] = item
+            save()
+            return
+        }
+        for i in rootItems.indices {
+            if replaceInChildren(item: item, in: &rootItems[i]) { save(); return }
+        }
     }
 
-    // MARK: - helpers
-
-    private func findIndex(of id: String, in items: inout [FolderItem]) -> Int? {
-        items.firstIndex { $0.id == id }
+    private func replaceInChildren(item: FolderItem, in parent: inout FolderItem) -> Bool {
+        guard var kids = parent.children else { return false }
+        if let idx = kids.firstIndex(where: { $0.id == item.id }) {
+            kids[idx] = item
+            parent.children = kids
+            return true
+        }
+        for i in kids.indices {
+            if replaceInChildren(item: item, in: &kids[i]) {
+                parent.children = kids
+                return true
+            }
+        }
+        return false
     }
 
     @discardableResult
     private func removeItem(id: String, from items: inout [FolderItem]) -> Bool {
         if let idx = items.firstIndex(where: { $0.id == id }) {
-            if items[idx].type == .folder {
-                // also delete children files
-                for child in items[idx].children ?? [] {
-                    if let p = child.attachmentPath {
-                        try? FileManager.default.removeItem(at: baseURL.appendingPathComponent("Images").appendingPathComponent(p))
-                    }
-                }
-            }
-            if let p = items[idx].attachmentPath {
-                try? FileManager.default.removeItem(at: baseURL.appendingPathComponent("Images").appendingPathComponent(p))
-            }
+            deleteFiles(for: items[idx])
             items.remove(at: idx)
             return true
         }
@@ -110,5 +172,36 @@ class StorageManager: ObservableObject {
             }
         }
         return false
+    }
+
+    private func deleteFiles(for item: FolderItem) {
+        if let p = item.attachmentPath {
+            let dn: String
+            switch item.type {
+            case .image: dn = "Images"
+            case .video: dn = "Videos"
+            case .file:  dn = "Files"
+            default:     return
+            }
+            try? FileManager.default.removeItem(at: baseURL.appendingPathComponent(dn).appendingPathComponent(p))
+        }
+        if item.type == .note {
+            if let url = noteFileURL(for: item) { try? FileManager.default.removeItem(at: url) }
+        }
+        if item.type == .folder {
+            for child in item.children ?? [] { deleteFiles(for: child) }
+        }
+    }
+
+    private func findPath(to id: String, in items: [FolderItem]) -> [FolderItem]? {
+        for item in items {
+            if item.id == id { return [] }
+            if let children = item.children {
+                if let tail = findPath(to: id, in: children) {
+                    return [item] + tail
+                }
+            }
+        }
+        return nil
     }
 }

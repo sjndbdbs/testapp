@@ -4,6 +4,7 @@ enum ItemType: String, Codable {
     case folder
     case note
     case image
+    case video
     case file
 }
 
@@ -14,6 +15,7 @@ struct FolderItem: Identifiable, Codable, Hashable {
     var children: [FolderItem]?
     var content: String?
     var attachmentPath: String?
+    var originalFilename: String? // for imported files
     var createdAt: Date
 
     var isFolder: Bool { type == .folder }
